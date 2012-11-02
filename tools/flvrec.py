@@ -9,6 +9,7 @@ import sys, time, socket, os, os.path, subprocess, signal
 from vnc2flv.flv import FLVWriter
 from vnc2flv.rfb import RFBNetworkClient, RFBError, PWDFile, PWDCache
 from vnc2flv.video import FLVVideoSink, str2clip, str2size
+import datetime
 
 
 ##  flvrec
@@ -18,7 +19,7 @@ def flvrec(filename, host='localhost', port=5900,
            preferred_encoding=(0,), pwdfile=None,
            blocksize=32, clipping=None,
            cmdline=None,
-           debug=0, verbose=1):
+           debug=0, verbose=1, time_per_piece=None):
     fp = file(filename, 'wb')
     if pwdfile:
         pwdcache = PWDFile(pwdfile)
@@ -41,6 +42,9 @@ def flvrec(filename, host='localhost', port=5900,
             os.execvp('sh', ['sh', '-c', cmdline])
             sys.exit(1)
     retval = 0
+    
+    starttime = datetime.datetime.now()
+
     try:
         def sigint_handler(sig, frame):
             raise KeyboardInterrupt
@@ -48,6 +52,11 @@ def flvrec(filename, host='localhost', port=5900,
         client.open()
         try:
             while 1:
+                if datetime.datetime.now() > starttime + datetime.timedelta(minutes=time_per_piece):
+                    starttime = datetime.datetime.now()
+                    fp = file('out%s.flv' % time.strftime('%Y%m%d%H%M'), 'wb')
+                    writer = FLVWriter(fp, framerate=framerate, debug=debug)
+                    sink.replace_writer(writer)
                 client.idle()
         finally:
             client.close()
@@ -75,7 +84,7 @@ def main(argv):
         print argv[0], vnc2flv.__version__
         print ('usage: %s [-d] [-q] [-o filename] [-r framerate] [-K keyframe]'
                ' [-e vnc_encoding] [-P vnc_pwdfile] [-N]'
-               ' [-B blocksize] [-C clipping] [-S subprocess]'
+               ' [-B blocksize] [-C clipping] [-S subprocess] [-t time-per-piece]'
                ' [host[:display] [port]]' % argv[0])
         return 100
     try:
@@ -93,6 +102,7 @@ def main(argv):
     blocksize = 32
     clipping = None
     cmdline = None
+    time_per_piece = None
     (host, port) = ('localhost', 5900)
     for (k, v) in opts:
         if k == '-d': debug += 1
@@ -106,6 +116,11 @@ def main(argv):
         elif k == '-B': blocksize = int(v)
         elif k == '-C': clipping = str2clip(v)
         elif k == '-S': cmdline = v
+        elif k == '-t':
+            if v.endswith('m'):
+                time_per_piece = int(v[:-1])
+            else:
+                raise Exception('Only understand values like 5m at present')
     if not cursor:
         preferred_encoding += (-232,-239,)
     if 1 <= len(args):
@@ -120,6 +135,6 @@ def main(argv):
     return flvrec(filename, host, port, framerate=framerate, keyframe=keyframe,
                   preferred_encoding=preferred_encoding, pwdfile=pwdfile,
                   blocksize=blocksize, clipping=clipping, cmdline=cmdline,
-                  debug=debug, verbose=verbose)
+                  debug=debug, verbose=verbose, time_per_piece=time_per_piece)
 
 if __name__ == "__main__": sys.exit(main(sys.argv))
