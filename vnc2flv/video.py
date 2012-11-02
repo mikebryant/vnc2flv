@@ -165,7 +165,13 @@ class FLVVideoSink(VideoSink):
         self.windowsize = None
         self.curframe = 0
         self.changes = []
+        self.force_keyframe = False
         return
+
+    def replace_writer(self, writer):
+        writer.set_screen_size(self.writer.metadata['width'], self.writer.metadata['height'])
+        self.writer = writer
+        self.force_keyframe = True
 
     def init_screen(self, width, height, name=None):
         (x,y, width, height) = VideoSink.init_screen(self, width, height, name=name)
@@ -207,8 +213,9 @@ class FLVVideoSink(VideoSink):
         (bw,bh) = self.windowsize
         (bx,by) = self.do_autopan(self.windowpos, changes)
         key = ((bx,by) != self.windowpos or
-               (self.keyframe and (self.curframe % self.keyframe) == 0))
+               (self.keyframe and (self.curframe % self.keyframe) == 0)) or self.force_keyframe
         if key:
+            self.force_keyframe = False
             # update the entire screen if necessary.
             self.windowpos = (bx,by)
             changes = set( (bx+x,by+y) for y in xrange(bh) for x in xrange(bw) )
