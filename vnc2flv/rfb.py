@@ -48,7 +48,7 @@ class PWDFile(object):
 
     def __init__(self, fname):
         fp = file(fname)
-        self.p = fp.read().strip()
+        self.p = fp.readlines()[0].strip()
         fp.close()
         return
 
